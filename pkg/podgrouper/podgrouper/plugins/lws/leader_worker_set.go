@@ -4,12 +4,14 @@
 package lws
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/NVIDIA/KAI-scheduler/pkg/podgrouper/podgroup"
 	"github.com/NVIDIA/KAI-scheduler/pkg/podgrouper/podgrouper/plugins/defaultgrouper"
@@ -23,6 +25,10 @@ const (
 
 	// LWS startup policies
 	leaderReadyStartupPolicy = "LeaderReady"
+)
+
+var (
+	logger = log.FromContext(context.Background())
 )
 
 type LwsGrouper struct {
@@ -61,10 +67,9 @@ func (lg *LwsGrouper) GetPodGroupMetadata(
 	}
 	podGroupMetadata.MinAvailable = groupSize
 
-	// Handle LeaderReady startup policy
 	startupPolicy, found, err := unstructured.NestedString(lwsJob.Object, "spec", "startupPolicy")
 	if err != nil {
-		return nil, err
+		logger.V(1).Info("Failed to extract lws startup policy for %s/%s", lwsJob.GetName(), lwsJob.GetNamespace())
 	}
 	if found && startupPolicy == leaderReadyStartupPolicy {
 		if err := lg.handleLeaderReadyStartupPolicy(pod, podGroupMetadata); err != nil {
@@ -92,7 +97,8 @@ func (lg *LwsGrouper) getGroupIndexFromPod(pod *v1.Pod) (int, error) {
 func (lg *LwsGrouper) getLwsGroupSize(lwsJob *unstructured.Unstructured) (int32, error) {
 	size, found, err := unstructured.NestedInt64(lwsJob.Object, "spec", "leaderWorkerTemplate", "size")
 	if err != nil {
-		return 0, fmt.Errorf("failed to get leaderWorkerTemplate.size from LWS %s/%s: %w", lwsJob.GetNamespace(), lwsJob.GetName(), err)
+		return 0, fmt.Errorf("failed to get leaderWorkerTemplate.size from LWS %s/%s with error: %w",
+			lwsJob.GetNamespace(), lwsJob.GetName(), err)
 	}
 	if !found {
 		return 0, fmt.Errorf("leaderWorkerTemplate.size not found in LWS %s/%s", lwsJob.GetNamespace(), lwsJob.GetName())
