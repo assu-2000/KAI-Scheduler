@@ -218,6 +218,7 @@ rules:
   - interactiveworkloads
   - runaijobs
   - trainingworkloads
+  - distributedinferenceworkload
   verbs:
   - get
   - list
