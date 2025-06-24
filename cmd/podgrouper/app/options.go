@@ -21,6 +21,9 @@ type Options struct {
 	KnativeGangSchedule      bool
 	SchedulerName            string
 	SchedulingQueueLabelKey  string
+
+	DefaultPrioritiesConfigMapName      string
+	DefaultPrioritiesConfigMapNamespace string
 }
 
 func (o *Options) AddFlags(fs *flag.FlagSet) {
@@ -34,16 +37,20 @@ func (o *Options) AddFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&o.SearchForLegacyPodGroups, "search-legacy-pg", true, "If this flag is enabled, try to find pod groups with legacy name format. If they exist, use the found pod groups instead of creating new once with current name format")
 	fs.BoolVar(&o.KnativeGangSchedule, "knative-gang-schedule", true, "Schedule knative revision as a gang. Defaults to true")
 	fs.StringVar(&o.SchedulerName, "scheduler-name", "kai-scheduler", "The name of the scheduler used to schedule pod groups")
-	fs.StringVar(&o.SchedulingQueueLabelKey, "queue-label-key", "runai/queue", "Scheduling queue label key name")
+	fs.StringVar(&o.SchedulingQueueLabelKey, "queue-label-key", "kai.scheduler/queue", "Scheduling queue label key name")
+	fs.StringVar(&o.DefaultPrioritiesConfigMapName, "default-priorities-configmap-name", "", "The name of the configmap that contains default priorities for pod groups")
+	fs.StringVar(&o.DefaultPrioritiesConfigMapNamespace, "default-priorities-configmap-namespace", "", "The namespace of the configmap that contains default priorities for pod groups")
 }
 
 func (o *Options) Configs() controllers.Configs {
 	return controllers.Configs{
-		NodePoolLabelKey:         o.NodePoolLabelKey,
-		MaxConcurrentReconciles:  o.MaxConcurrentReconciles,
-		SearchForLegacyPodGroups: o.SearchForLegacyPodGroups,
-		KnativeGangSchedule:      o.KnativeGangSchedule,
-		SchedulerName:            o.SchedulerName,
-		SchedulingQueueLabelKey:  o.SchedulingQueueLabelKey,
+		NodePoolLabelKey:                    o.NodePoolLabelKey,
+		MaxConcurrentReconciles:             o.MaxConcurrentReconciles,
+		SearchForLegacyPodGroups:            o.SearchForLegacyPodGroups,
+		KnativeGangSchedule:                 o.KnativeGangSchedule,
+		SchedulerName:                       o.SchedulerName,
+		SchedulingQueueLabelKey:             o.SchedulingQueueLabelKey,
+		DefaultPrioritiesConfigMapName:      o.DefaultPrioritiesConfigMapName,
+		DefaultPrioritiesConfigMapNamespace: o.DefaultPrioritiesConfigMapNamespace,
 	}
 }

@@ -21,10 +21,12 @@ data:
           - name: dynamicresources
           - name: gpupack
           - name: gpusharingorder
+          - name: snapshot
           - name: nodeplacement
             arguments:
               cpu: {{ .Values.scheduler.placementStrategy }}
               gpu: {{ .Values.scheduler.placementStrategy }}
+          - name: minruntime
 kind: ConfigMap
 metadata:
   labels:

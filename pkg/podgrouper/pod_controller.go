@@ -26,8 +26,7 @@ import (
 )
 
 const (
-	jobIdAnnotationForPod = "runai-job-id"
-	controllerName        = "pod-grouper"
+	controllerName = "pod-grouper"
 
 	rateLimiterBaseDelay = time.Second
 	rateLimiterMaxDelay  = time.Minute
@@ -50,8 +49,12 @@ type Configs struct {
 	KnativeGangSchedule      bool
 	SchedulerName            string
 	SchedulingQueueLabelKey  string
+
+	DefaultPrioritiesConfigMapName      string
+	DefaultPrioritiesConfigMapNamespace string
 }
 
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=create;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch;update;get;list;watch
 // +kubebuilder:rbac:groups="scheduling.run.ai",resources=podgroups,verbs=create;update;patch;get;list;watch
@@ -130,7 +133,8 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, configs Configs) erro
 	}
 
 	r.podGrouper = podgrouper.NewPodgrouper(mgr.GetClient(), clientWithoutCache, configs.SearchForLegacyPodGroups,
-		configs.KnativeGangSchedule, configs.SchedulingQueueLabelKey, configs.NodePoolLabelKey)
+		configs.KnativeGangSchedule, configs.SchedulingQueueLabelKey, configs.NodePoolLabelKey,
+		configs.DefaultPrioritiesConfigMapName, configs.DefaultPrioritiesConfigMapNamespace)
 	r.PodGroupHandler = podgroup.NewHandler(mgr.GetClient(), configs.NodePoolLabelKey, configs.SchedulingQueueLabelKey)
 	r.configs = configs
 	r.eventRecorder = mgr.GetEventRecorderFor(controllerName)
@@ -152,28 +156,15 @@ func (r *PodReconciler) addPodGroupAnnotationToPod(ctx context.Context, pod *v1.
 		pod.Annotations = map[string]string{}
 	}
 
-	reconcile := false
 	value, found := pod.Annotations[constants.PodGroupAnnotationForPod]
-	if !found || value != podGroup {
-		logger.V(1).Info("Reconciling podgroup annotation for pod", "pod",
-			fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "old", value, "new", podGroup)
-		reconcile = true
-	}
-
-	value, found = pod.Annotations[jobIdAnnotationForPod]
-	if !found || value != jobID {
-		logger.V(1).Info("Reconciling jobId annotation for pod", "pod",
-			fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "old", value, "new", jobID)
-		reconcile = true
-	}
-
-	if !reconcile {
+	if found && value == podGroup {
 		return nil
 	}
+	logger.V(1).Info("Reconciling podgroup annotation for pod", "pod",
+		fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "old", value, "new", podGroup)
 
 	newPod := pod.DeepCopy()
 	newPod.Annotations[constants.PodGroupAnnotationForPod] = podGroup
-	newPod.Annotations[jobIdAnnotationForPod] = jobID
 
 	return r.Client.Patch(ctx, newPod, client.MergeFrom(pod))
 }
