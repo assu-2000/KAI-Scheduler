@@ -59,14 +59,23 @@ type proportionPlugin struct {
 	reclaimablePlugin         *rec.Reclaimable
 	isInferencePreemptible    bool
 	allowConsolidatingReclaim bool
+	priorityBasedFairShare    bool
 }
 
 func New(arguments map[string]string) framework.Plugin {
-	return &proportionPlugin{
+	pp := &proportionPlugin{
 		totalResource:   rs.EmptyResourceQuantities(),
 		queues:          map[common_info.QueueID]*rs.QueueAttributes{},
 		pluginArguments: arguments,
 	}
+
+	if val, ok := arguments["priorityBasedFairShare"]; ok {
+		if val == "true" || val == "True" || val == "1" {
+			pp.priorityBasedFairShare = true
+		}
+	}
+
+	return pp
 }
 
 func (pp *proportionPlugin) Name() string {
@@ -354,7 +363,11 @@ func (pp *proportionPlugin) setFairShareForQueues(totalResources rs.ResourceQuan
 		return
 	}
 
-	resource_division.SetResourcesShare(totalResources, queues)
+	if pp.priorityBasedFairShare {
+		resource_division.SetResourcesSharePriority(totalResources, queues)
+	} else {
+		resource_division.SetResourcesShare(totalResources, queues)
+	}
 	for _, queue := range queues {
 		childQueues := pp.getChildQueues(queue)
 		resources := queue.GetFairShare()
