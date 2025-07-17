@@ -21,6 +21,7 @@ package proportion
 
 import (
 	"math"
+	"strconv"
 
 	commonconstants "github.com/NVIDIA/KAI-scheduler/pkg/common/constants"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api"
@@ -70,8 +71,10 @@ func New(arguments map[string]string) framework.Plugin {
 	}
 
 	if val, ok := arguments["priorityBasedFairShare"]; ok {
-		if val == "true" || val == "True" || val == "1" {
-			pp.priorityBasedFairShare = true
+		if priorityBasedFairShare, err := strconv.ParseBool(val); err == nil {
+			pp.priorityBasedFairShare = priorityBasedFairShare
+		} else {
+			log.InfraLogger.Errorf("Invalid value for priorityBasedFairShare: %s, using default value 'false'", val)
 		}
 	}
 

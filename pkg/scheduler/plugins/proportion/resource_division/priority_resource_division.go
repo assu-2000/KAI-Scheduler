@@ -1,3 +1,6 @@
+// Copyright 2025 NVIDIA CORPORATION
+// SPDX-License-Identifier: Apache-2.0
+
 package resource_division
 
 import (
@@ -24,58 +27,78 @@ func SetResourcesSharePriority(totalResource rs.ResourceQuantities, queues map[c
 			continue
 		}
 
-		// Group queues by priority (higher first).
+		// Group queues by priority (higher first)
 		queuesByPriority, priorities := getQueuesByPriority(queues)
 
+		// Process each priority level
 		for _, priority := range priorities {
+			remaining = processPriorityBucket(remaining, queuesByPriority[priority], resource, totalResource[resource])
 			if remaining <= 0 {
 				break
 			}
-			bucket := queuesByPriority[priority]
-
-			// ---------- Phase 1: Deserved quota ----------
-			for _, q := range bucket {
-				if remaining <= 0 {
-					break
-				}
-				rsShare := q.ResourceShare(resource)
-				deserved := rsShare.Deserved
-				if deserved == commonconstants.UnlimitedResourceQuantity {
-					deserved = totalResource[resource]
-				}
-				toGive := math.Min(deserved, rsShare.GetRequestableShare())
-				toGive = math.Min(toGive, remaining)
-				if toGive > 0 {
-					q.AddResourceShare(resource, toGive)
-					remaining -= toGive
-				}
-			}
-			if remaining <= 0 {
-				continue
-			}
-
-			// ---------- Phase 2: OverQuotaWeight ----------
-			remaining = divideOverQuotaResource(remaining, bucket, resource)
-			if remaining <= 0 {
-				continue
-			}
-
-			// ---------- Phase 3: Weight-0 compensation ----------
-			// save original OverQuotaWeight
-			originalOverQuotaWeight := make(map[common_info.QueueID]float64)
-			for _, q := range bucket {
-				originalOverQuotaWeight[q.UID] = q.ResourceShare(resource).OverQuotaWeight
-				q.ResourceShare(resource).OverQuotaWeight = 1
-			}
-			// divide over quota resource
-			remaining = divideOverQuotaResource(remaining, bucket, resource)
-			// restore original OverQuotaWeight
-			for _, q := range bucket {
-				q.ResourceShare(resource).OverQuotaWeight = originalOverQuotaWeight[q.UID]
-			}
-
 		}
 	}
 
 	reportDivisionResult(queues)
+}
+
+// processPriorityBucket processes a single priority bucket through all division phases
+func processPriorityBucket(remaining float64, bucket map[common_info.QueueID]*rs.QueueAttributes, resource rs.ResourceName, totalResource float64) float64 {
+	if remaining <= 0 {
+		return remaining
+	}
+
+	// Phase 1: Distribute Deserved quota
+	remaining = divideDeservedQuota(remaining, bucket, resource, totalResource)
+	if remaining <= 0 {
+		return remaining
+	}
+
+	// Phase 2: Distribute over quota between queues
+	remaining = divideOverQuotaResource(remaining, bucket, resource)
+	if remaining <= 0 {
+		return remaining
+	}
+
+	// Phase 3: Weight-0 compensation - Distribute remaining quota to queues with 0 OverQuotaWeight
+	remaining = divideWithCompensation(remaining, bucket, resource)
+
+	return remaining
+}
+
+func divideDeservedQuota(remaining float64, queues map[common_info.QueueID]*rs.QueueAttributes, resource rs.ResourceName, totalResource float64) float64 {
+	for _, q := range queues {
+		if remaining <= 0 {
+			break
+		}
+		rsShare := q.ResourceShare(resource)
+		deserved := rsShare.Deserved
+		if deserved == commonconstants.UnlimitedResourceQuantity {
+			deserved = totalResource
+		}
+		toGive := math.Min(deserved, rsShare.GetRequestableShare())
+		toGive = math.Min(toGive, remaining)
+		if toGive > 0 {
+			q.AddResourceShare(resource, toGive)
+			remaining -= toGive
+		}
+	}
+	return remaining
+}
+
+// divideWithCompensation divides remaining resources among queues with zero weight by temporarily setting their weights to 1
+func divideWithCompensation(remaining float64, queues map[common_info.QueueID]*rs.QueueAttributes, resource rs.ResourceName) float64 {
+	originalOverQuotaWeight := make(map[common_info.QueueID]float64)
+	for _, q := range queues {
+		originalOverQuotaWeight[q.UID] = q.ResourceShare(resource).OverQuotaWeight
+		q.ResourceShare(resource).OverQuotaWeight = 1
+	}
+
+	remaining = divideOverQuotaResource(remaining, queues, resource)
+
+	for _, q := range queues {
+		q.ResourceShare(resource).OverQuotaWeight = originalOverQuotaWeight[q.UID]
+	}
+
+	return remaining
 }
