@@ -100,6 +100,7 @@ func (t *topologyPlugin) calcTreeAlocationData(job *podgroup_info.PodGroupInfo, 
 	for len(latestUpdatedDomains) > 0 {
 		for _, domain := range latestUpdatedDomains {
 			if domain.Parent != nil {
+				// Known issue: shold be replaced with the real distance logic
 				// TODO: subsetsum on allocateablePods, from them find min distance
 				if domain.Parent.AllocatablePods < taskToAllocateCount {
 					// If the parent domain has less allocateable pods than the tasks to allocate,

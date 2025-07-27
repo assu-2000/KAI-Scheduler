@@ -4,6 +4,7 @@
 package topology
 
 import (
+	"sort"
 	"testing"
 
 	"k8s.io/utils/ptr"
@@ -12,6 +13,7 @@ import (
 	enginev2alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2alpha2"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/common_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/node_info"
+	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_status"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/podgroup_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/resource_info"
@@ -1185,6 +1187,448 @@ func TestTopologyPlugin_calcTreeAlocationData(t *testing.T) {
 				if actualDomain.AllocatablePods != expectedDomain.AllocatablePods {
 					t.Errorf("domain %s: expected AllocatablePods %d, got %d",
 						domainID, expectedDomain.AllocatablePods, actualDomain.AllocatablePods)
+				}
+			}
+		})
+	}
+}
+
+func TestTopologyPlugin_getBestjobAllocateableDomains(t *testing.T) {
+	tests := []struct {
+		name            string
+		job             *podgroup_info.PodGroupInfo
+		topologyTree    *TopologyInfo
+		taskOrderFunc   common_info.LessFn
+		expectedDomains []*TopologyDomainInfo
+		expectedError   string
+	}{
+		{
+			name: "single domain with minimum distance",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 2,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey:  "zone",
+							topologyPreferredPlacementAnnotationKey: "rack",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Pending},
+					"pod2": {Name: "pod2", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "rack"},
+							{NodeLabel: "zone"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"rack1.zone1": {
+						ID:              "rack1.zone1",
+						Name:            "rack1",
+						Level:           "rack",
+						Distance:        1,
+						AllocatablePods: 2,
+					},
+					"rack2.zone1": {
+						ID:              "rack2.zone1",
+						Name:            "rack2",
+						Level:           "rack",
+						Distance:        3,
+						AllocatablePods: 2,
+					},
+					"zone1": {
+						ID:              "zone1",
+						Name:            "zone1",
+						Level:           "zone",
+						Distance:        2,
+						AllocatablePods: 4,
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: []*TopologyDomainInfo{
+				{
+					ID:              "rack1.zone1",
+					Name:            "rack1",
+					Level:           "rack",
+					Distance:        1,
+					AllocatablePods: 2,
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "multiple domains with same minimum distance",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 2,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey: "zone",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Pending},
+					"pod2": {Name: "pod2", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "rack"},
+							{NodeLabel: "zone"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"rack1.zone1": {
+						ID:              "rack1.zone1",
+						Name:            "rack1",
+						Level:           "rack",
+						Distance:        1,
+						AllocatablePods: 2,
+					},
+					"rack2.zone1": {
+						ID:              "rack2.zone1",
+						Name:            "rack2",
+						Level:           "rack",
+						Distance:        1,
+						AllocatablePods: 2,
+					},
+					"zone1": {
+						ID:              "zone1",
+						Name:            "zone1",
+						Level:           "zone",
+						Distance:        2,
+						AllocatablePods: 4,
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: []*TopologyDomainInfo{
+				{
+					ID:              "rack1.zone1",
+					Name:            "rack1",
+					Level:           "rack",
+					Distance:        1,
+					AllocatablePods: 2,
+				},
+				{
+					ID:              "rack2.zone1",
+					Name:            "rack2",
+					Level:           "rack",
+					Distance:        1,
+					AllocatablePods: 2,
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "no domains can allocate the job",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 2,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey: "zone",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Pending},
+					"pod2": {Name: "pod2", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "rack"},
+							{NodeLabel: "zone"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"rack1.zone1": {
+						ID:              "rack1.zone1",
+						Name:            "rack1",
+						Level:           "rack",
+						Distance:        1,
+						AllocatablePods: 1, // Can only fit 1 pod, job needs 2
+					},
+					"zone1": {
+						ID:              "zone1",
+						Name:            "zone1",
+						Level:           "zone",
+						Distance:        2,
+						AllocatablePods: 1, // Can only fit 1 pod, job needs 2
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: []*TopologyDomainInfo{},
+			expectedError:   "",
+		},
+		{
+			name: "no relevant domain levels",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 1,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey:  "zone",
+							topologyPreferredPlacementAnnotationKey: "rack",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "datacenter"},
+							{NodeLabel: "region"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"datacenter1": {
+						ID:              "datacenter1",
+						Name:            "datacenter1",
+						Level:           "datacenter",
+						Distance:        1,
+						AllocatablePods: 1,
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: nil,
+			expectedError:   "the topology test-topology doesn't have a level matching the required(zone) spesified for the job test-job",
+		},
+		{
+			name: "complex topology with multiple levels and mixed distances",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 3,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey:  "region",
+							topologyPreferredPlacementAnnotationKey: "zone",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Pending},
+					"pod2": {Name: "pod2", Status: pod_status.Pending},
+					"pod3": {Name: "pod3", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "rack"},
+							{NodeLabel: "zone"},
+							{NodeLabel: "region"},
+							{NodeLabel: "datacenter"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"rack1.zone1.region1": {
+						ID:              "rack1.zone1.region1",
+						Name:            "rack1",
+						Level:           "rack",
+						Distance:        1,
+						AllocatablePods: 3,
+					},
+					"rack2.zone1.region1": {
+						ID:              "rack2.zone1.region1",
+						Name:            "rack2",
+						Level:           "rack",
+						Distance:        2,
+						AllocatablePods: 3,
+					},
+					"zone1.region1": {
+						ID:              "zone1.region1",
+						Name:            "zone1",
+						Level:           "zone",
+						Distance:        3,
+						AllocatablePods: 6,
+					},
+					"region1": {
+						ID:              "region1",
+						Name:            "region1",
+						Level:           "region",
+						Distance:        4,
+						AllocatablePods: 9,
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: []*TopologyDomainInfo{
+				{
+					ID:              "zone1.region1",
+					Name:            "zone1",
+					Level:           "zone",
+					Distance:        3,
+					AllocatablePods: 6,
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "mixed task statuses - some pending, some running",
+			job: &podgroup_info.PodGroupInfo{
+				Name:         "test-job",
+				MinAvailable: 2,
+				PodGroup: &enginev2alpha2.PodGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-job",
+						Annotations: map[string]string{
+							topologyRequiredPlacementAnnotationKey: "zone",
+						},
+					},
+				},
+				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
+					"pod1": {Name: "pod1", Status: pod_status.Running},
+					"pod2": {Name: "pod2", Status: pod_status.Pending},
+					"pod3": {Name: "pod3", Status: pod_status.Pending},
+				},
+			},
+			topologyTree: &TopologyInfo{
+				Name: "test-topology",
+				TopologyResource: &kueuev1alpha1.Topology{
+					Spec: kueuev1alpha1.TopologySpec{
+						Levels: []kueuev1alpha1.TopologyLevel{
+							{NodeLabel: "zone"},
+						},
+					},
+				},
+				Domains: map[TopologyDomainID]*TopologyDomainInfo{
+					"zone1": {
+						ID:              "zone1",
+						Name:            "zone1",
+						Level:           "zone",
+						Distance:        1,
+						AllocatablePods: 2,
+					},
+				},
+			},
+			taskOrderFunc: func(l, r interface{}) bool {
+				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
+			},
+			expectedDomains: []*TopologyDomainInfo{
+				{
+					ID:              "zone1",
+					Name:            "zone1",
+					Level:           "zone",
+					Distance:        1,
+					AllocatablePods: 2,
+				},
+			},
+			expectedError: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := &topologyPlugin{
+				taskOrderFunc: tt.taskOrderFunc,
+			}
+
+			result, err := plugin.getBestjobAllocateableDomains(tt.job, tt.topologyTree)
+
+			// Check error
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Errorf("expected error '%s', but got nil", tt.expectedError)
+					return
+				}
+				if err.Error() != tt.expectedError {
+					t.Errorf("expected error '%s', but got '%s'", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check result
+			if len(result) != len(tt.expectedDomains) {
+				t.Errorf("expected %d domains, but got %d", len(tt.expectedDomains), len(result))
+				return
+			}
+
+			// Sort both slices by domain ID for consistent comparison
+			sortDomains := func(domains []*TopologyDomainInfo) {
+				sort.Slice(domains, func(i, j int) bool {
+					return domains[i].ID < domains[j].ID
+				})
+			}
+			sortDomains(result)
+			sortDomains(tt.expectedDomains)
+
+			for i, expectedDomain := range tt.expectedDomains {
+				if i >= len(result) {
+					t.Errorf("expected domain at index %d not found in result", i)
+					continue
+				}
+
+				actualDomain := result[i]
+				if actualDomain.ID != expectedDomain.ID {
+					t.Errorf("domain %d: expected ID %s, got %s", i, expectedDomain.ID, actualDomain.ID)
+				}
+				if actualDomain.Name != expectedDomain.Name {
+					t.Errorf("domain %d: expected Name %s, got %s", i, expectedDomain.Name, actualDomain.Name)
+				}
+				if actualDomain.Level != expectedDomain.Level {
+					t.Errorf("domain %d: expected Level %s, got %s", i, expectedDomain.Level, actualDomain.Level)
+				}
+				if actualDomain.Distance != expectedDomain.Distance {
+					t.Errorf("domain %d: expected Distance %d, got %d", i, expectedDomain.Distance, actualDomain.Distance)
+				}
+				if actualDomain.AllocatablePods != expectedDomain.AllocatablePods {
+					t.Errorf("domain %d: expected AllocatablePods %d, got %d", i, expectedDomain.AllocatablePods, actualDomain.AllocatablePods)
 				}
 			}
 		})
