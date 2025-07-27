@@ -32,7 +32,7 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 		nodes              map[string]nodes_fake.TestNodeBasic
 		nodesToDomains     map[string]TopologyDomainID
 		setupTopologyTree  func() *TopologyInfo
-		expectedCount      int
+		expectedError      error
 		expectedDomains    map[TopologyDomainID]*TopologyDomainInfo
 	}{
 		{
@@ -89,7 +89,7 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 					},
 				}
 			},
-			expectedCount: 1,
+			expectedError: nil,
 			expectedDomains: map[TopologyDomainID]*TopologyDomainInfo{
 				"zone1": {
 					ID:              "zone1",
@@ -149,7 +149,7 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 					},
 				}
 			},
-			expectedCount: 2,
+			expectedError: nil,
 			expectedDomains: map[TopologyDomainID]*TopologyDomainInfo{
 				"zone1": {
 					ID:              "zone1",
@@ -269,7 +269,7 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 
 				return tree
 			},
-			expectedCount: 2,
+			expectedError: nil,
 			expectedDomains: map[TopologyDomainID]*TopologyDomainInfo{
 				"rack1.zone1": {
 					ID:              "rack1.zone1",
@@ -331,11 +331,20 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 				nodesInfoMap:       nodesInfoMap,
 			}
 
-			count, domains := plugin.calcAllocationsForLeafDomains(job, topologyTree)
+			err, domains := plugin.calcAllocationsForLeafDomains(job, topologyTree)
 
 			// Assert
-			if count != tt.expectedCount {
-				t.Errorf("expected count %d, got %d", tt.expectedCount, count)
+			if tt.expectedError != nil {
+				if err == nil {
+					t.Errorf("expected error %v, got nil", tt.expectedError)
+				}
+				if err.Error() != tt.expectedError.Error() {
+					t.Errorf("expected error %v, got %v", tt.expectedError, err)
+				}
+			}
+			if err != nil {
+				t.Errorf("expected error %v, got %v", tt.expectedError, err)
+				return
 			}
 
 			if len(domains) != len(tt.expectedDomains) {
