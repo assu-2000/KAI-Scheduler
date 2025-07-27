@@ -7,7 +7,6 @@ import (
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/common_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/node_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_info"
-	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/resource_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/framework"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/k8s_internal"
 	kueuev1alpha1 "sigs.k8s.io/kueue/apis/kueue/v1alpha1"
@@ -55,25 +54,6 @@ func (t *topologyPlugin) OnSessionOpen(ssn *framework.Session) {
 	ssn.AddPredicateFn(t.predicateFn)
 	//node order to sort the nodes according to topology nodes score - this is for "prefer" use only
 	ssn.AddNodeOrderFn(t.nodeOrderFn)
-}
-
-func (*topologyPlugin) addDomainIfValidForJobAllocation(
-	domain *TopologyDomainInfo, jobNextAllocationResources *resource_info.Resource,
-	relevantDomains []*TopologyDomainInfo) []*TopologyDomainInfo {
-	idleDomainResources := domain.AvailableResources.Clone()
-	idleDomainResources.Sub(domain.AllocatedResources)
-	freePodsInDomain := int(idleDomainResources.BaseResource.ScalarResources()["pods"]) - domain.AllocatablePods
-
-	domainResourceAvalability := jobNextAllocationResources.LessEqual(idleDomainResources)
-	domainPodAvalability := freePodsInDomain > 0
-	if domainResourceAvalability && domainPodAvalability {
-		if len(relevantDomains) == 0 || domain.Depth > relevantDomains[0].Depth {
-			relevantDomains = []*TopologyDomainInfo{domain}
-		} else if domain.Depth == relevantDomains[0].Depth {
-			relevantDomains = append(relevantDomains, domain)
-		}
-	}
-	return relevantDomains
 }
 
 func (t *topologyPlugin) initializeTopologyTree(topologies []*kueuev1alpha1.Topology, ssn *framework.Session) {
