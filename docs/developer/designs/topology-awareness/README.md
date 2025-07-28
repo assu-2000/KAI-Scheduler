@@ -300,6 +300,21 @@ The implementation will proceed in phases:
 2. Implementing TopologyInfo and updating its resources with current pod allocation and simulations.
 3. Implementation of Approach 1 in a topology plugin (can be the same plugin from step 2.)
 
+#### Implementing allocation distance calculation
+
+For each tree node $v$ and for each $w$ pods to allocate for the job, let $C(v,w)$ be the minimum distance from all nodes required for allocation (in the subtree rooted at $v$) needed to allocate $w$ pods from a job.
+
+For a server node with weight $w$:   
+$C(node,0) = 0$  
+$C(node,w) = 0 \;\;\;\: if \; w <= w_l$  
+$C(node,w) = ∞ \;\; if \; w > w_l$
+
+For an tree node with children $c_1,c_2,...,c_n$:  
+    $C(v,w) = \min_{w_1 + w_2 + ... + w_n = w} (∑_{i:w_i>0}1+C(c_i,w_i))$
+
+At the root, $C(root,K)$ gives the minimal distance required to allocate the whole job (K pods).
+
+
 
 ## Alternatives Considered
 
