@@ -54,9 +54,9 @@ rules:
   - patch
   - update
 - apiGroups:
-  - policy
+  - kueue.x-k8s.io
   resources:
-  - poddisruptionbudgets
+  - topologies
   verbs:
   - get
   - list

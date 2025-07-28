@@ -24,10 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -47,6 +44,9 @@ import (
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/conf"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/log"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/utils"
+
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1alpha1"
+	kueueinformer "sigs.k8s.io/kueue/client-go/informers/externalversions"
 )
 
 type ClusterInfo struct {
@@ -70,6 +70,7 @@ const (
 func New(
 	informerFactory informers.SharedInformerFactory,
 	kubeAiSchedulerInformerFactory kubeAiSchedulerinfo.SharedInformerFactory,
+	kueueInformerFactory kueueinformer.SharedInformerFactory,
 	nodePoolParams *conf.SchedulingNodePoolParams,
 	restrictNodeScheduling bool,
 	clusterPodAffinityInfo pod_affinity.ClusterPodAffinityInfo,
@@ -95,7 +96,7 @@ func New(
 	}
 
 	return &ClusterInfo{
-		dataLister:               data_lister.New(informerFactory, kubeAiSchedulerInformerFactory, nodePoolSelector),
+		dataLister:               data_lister.New(informerFactory, kubeAiSchedulerInformerFactory, kueueInformerFactory, nodePoolSelector),
 		nodePoolParams:           nodePoolParams,
 		restrictNodeScheduling:   restrictNodeScheduling,
 		clusterPodAffinityInfo:   clusterPodAffinityInfo,
@@ -151,6 +152,11 @@ func (c *ClusterInfo) Snapshot() (*api.ClusterInfo, error) {
 	}
 
 	snapshot.ConfigMaps, err = c.snapshotConfigMaps()
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot.Topologies, err = c.snapshotTopologies()
 	if err != nil {
 		return nil, err
 	}
@@ -300,10 +306,6 @@ func (c *ClusterInfo) snapshotPodGroups(
 			continue
 		}
 
-		if podGroupInfo.MinAvailable == 0 {
-			podGroupInfo.MinAvailable = 1
-		}
-
 		podGroupInfo.Priority = getPodGroupPriority(podGroup, defaultPriority, c.dataLister)
 		log.InfraLogger.V(7).Infof("The priority of job <%s/%s> is <%s/%d>", podGroup.Namespace, podGroup.Name,
 			podGroup.Spec.PriorityClassName, podGroupInfo.Priority)
@@ -326,11 +328,6 @@ func (c *ClusterInfo) snapshotPodGroups(
 		result[common_info.PodGroupID(podGroup.Name)] = podGroupInfo
 	}
 
-	err = c.updatePodDisruptionBudgets(result)
-	if err != nil {
-		return nil, err
-	}
-
 	return result, nil
 }
 
@@ -349,23 +346,6 @@ func (c *ClusterInfo) getPodInfo(
 		existingPods[common_info.PodID(pod.UID)] = podInfo
 	}
 	return podInfo
-}
-
-func (c *ClusterInfo) updatePodDisruptionBudgets(podGroups map[common_info.PodGroupID]*podgroup_info.PodGroupInfo) error {
-	pdbs, err := c.dataLister.ListPodDisruptionBudgets()
-	if err != nil {
-		return err
-	}
-	for _, pdb := range pdbs {
-		podGroupId := common_info.PodGroupID(getController(pdb))
-		podGroup, found := podGroups[podGroupId]
-		if !found {
-			continue
-		}
-		podGroup.SetPDB(pdb)
-	}
-
-	return nil
 }
 
 func (c *ClusterInfo) setPodGroupWithIndex(podGroup *enginev2alpha2.PodGroup, podGroupInfo *podgroup_info.PodGroupInfo) {
@@ -406,6 +386,14 @@ func (c *ClusterInfo) snapshotConfigMaps() (map[common_info.ConfigMapID]*configm
 	}
 
 	return result, nil
+}
+
+func (c *ClusterInfo) snapshotTopologies() ([]*kueue.Topology, error) {
+	topologies, err := c.dataLister.ListTopologies()
+	if err != nil {
+		return nil, fmt.Errorf("error listing topologies: %w", err)
+	}
+	return topologies, nil
 }
 
 func getDefaultPriority(dataLister data_lister.DataLister) (int32, error) {
@@ -491,18 +479,4 @@ func (c *ClusterInfo) isPodGroupUpForScheduler(podGroup *enginev2alpha2.PodGroup
 	}
 
 	return false
-}
-
-func getController(obj interface{}) types.UID {
-	accessor, err := meta.Accessor(obj)
-	if err != nil {
-		return ""
-	}
-
-	controllerRef := metav1.GetControllerOf(accessor)
-	if controllerRef != nil {
-		return controllerRef.UID
-	}
-
-	return ""
 }

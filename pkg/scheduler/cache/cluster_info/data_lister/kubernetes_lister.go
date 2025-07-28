@@ -5,13 +5,11 @@ package data_lister
 
 import (
 	v1 "k8s.io/api/core/v1"
-	k8spolicyv1 "k8s.io/api/policy/v1"
 	v14 "k8s.io/api/scheduling/v1"
 	storage "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	listv1 "k8s.io/client-go/listers/core/v1"
-	policyv1 "k8s.io/client-go/listers/policy/v1"
 	schedv1 "k8s.io/client-go/listers/scheduling/v1"
 	v12 "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
@@ -23,6 +21,10 @@ import (
 	schedulingv1alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v1alpha2"
 	enginev2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2"
 	enginev2alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2alpha2"
+
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1alpha1"
+	kueueInformer "sigs.k8s.io/kueue/client-go/informers/externalversions"
+	kueueLister "sigs.k8s.io/kueue/client-go/listers/kueue/v1alpha1"
 )
 
 type k8sLister struct {
@@ -31,7 +33,6 @@ type k8sLister struct {
 	podLister      listv1.PodLister
 	nodeLister     listv1.NodeLister
 	queueLister    schedlistv2.QueueLister
-	pdbLister      policyv1.PodDisruptionBudgetLister
 	pcLister       schedv1.PriorityClassLister
 	cmLister       listv1.ConfigMapLister
 
@@ -42,6 +43,8 @@ type k8sLister struct {
 
 	bindRequestLister scheudlinglistv1alpha2.BindRequestLister
 
+	kueueTopologyLister kueueLister.TopologyLister
+
 	partitionSelector labels.Selector
 }
 
@@ -49,6 +52,7 @@ type k8sLister struct {
 
 func New(
 	informerFactory informers.SharedInformerFactory, kubeAiSchedulerInformerFactory kubeAiSchedulerInfo.SharedInformerFactory,
+	kueueInformerFactory kueueInformer.SharedInformerFactory,
 	partitionSelector labels.Selector,
 ) *k8sLister {
 	return &k8sLister{
@@ -57,7 +61,6 @@ func New(
 		podLister:      informerFactory.Core().V1().Pods().Lister(),
 		nodeLister:     informerFactory.Core().V1().Nodes().Lister(),
 		queueLister:    kubeAiSchedulerInformerFactory.Scheduling().V2().Queues().Lister(),
-		pdbLister:      informerFactory.Policy().V1().PodDisruptionBudgets().Lister(),
 		pcLister:       informerFactory.Scheduling().V1().PriorityClasses().Lister(),
 		cmLister:       informerFactory.Core().V1().ConfigMaps().Lister(),
 
@@ -67,6 +70,8 @@ func New(
 		csiDriverLister:       informerFactory.Storage().V1().CSIDrivers().Lister(),
 
 		bindRequestLister: kubeAiSchedulerInformerFactory.Scheduling().V1alpha2().BindRequests().Lister(),
+
+		kueueTopologyLister: kueueInformerFactory.Kueue().V1alpha1().Topologies().Lister(),
 
 		partitionSelector: partitionSelector,
 	}
@@ -94,12 +99,6 @@ func (k *k8sLister) ListNodes() ([]*v1.Node, error) {
 
 func (k *k8sLister) ListQueues() ([]*enginev2.Queue, error) {
 	return k.queueLister.List(k.partitionSelector)
-}
-
-// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch
-
-func (k *k8sLister) ListPodDisruptionBudgets() ([]*k8spolicyv1.PodDisruptionBudget, error) {
-	return k.pdbLister.List(labels.Everything())
 }
 
 // +kubebuilder:rbac:groups="scheduling.k8s.io",resources=priorityclasses,verbs=get;list;watch
@@ -150,4 +149,10 @@ func (k *k8sLister) ListBindRequests() ([]*schedulingv1alpha2.BindRequest, error
 
 func (k *k8sLister) ListConfigMaps() ([]*v1.ConfigMap, error) {
 	return k.cmLister.List(labels.Everything())
+}
+
+// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=topologies,verbs=get;list;watch
+
+func (k *k8sLister) ListTopologies() ([]*kueue.Topology, error) {
+	return k.kueueTopologyLister.List(labels.Everything())
 }

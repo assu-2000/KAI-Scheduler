@@ -17,9 +17,9 @@ import (
 	v2alpha2 "github.com/NVIDIA/KAI-scheduler/pkg/apis/scheduling/v2alpha2"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
-	v10 "k8s.io/api/policy/v1"
-	v11 "k8s.io/api/scheduling/v1"
-	v12 "k8s.io/api/storage/v1"
+	v10 "k8s.io/api/scheduling/v1"
+	v11 "k8s.io/api/storage/v1"
+	v1alpha1 "sigs.k8s.io/kueue/apis/kueue/v1alpha1"
 )
 
 // MockDataLister is a mock of DataLister interface.
@@ -47,10 +47,10 @@ func (m *MockDataLister) EXPECT() *MockDataListerMockRecorder {
 }
 
 // GetPriorityClassByName mocks base method.
-func (m *MockDataLister) GetPriorityClassByName(name string) (*v11.PriorityClass, error) {
+func (m *MockDataLister) GetPriorityClassByName(name string) (*v10.PriorityClass, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPriorityClassByName", name)
-	ret0, _ := ret[0].(*v11.PriorityClass)
+	ret0, _ := ret[0].(*v10.PriorityClass)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -77,10 +77,10 @@ func (mr *MockDataListerMockRecorder) ListBindRequests() *gomock.Call {
 }
 
 // ListCSIDrivers mocks base method.
-func (m *MockDataLister) ListCSIDrivers() ([]*v12.CSIDriver, error) {
+func (m *MockDataLister) ListCSIDrivers() ([]*v11.CSIDriver, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListCSIDrivers")
-	ret0, _ := ret[0].([]*v12.CSIDriver)
+	ret0, _ := ret[0].([]*v11.CSIDriver)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -92,10 +92,10 @@ func (mr *MockDataListerMockRecorder) ListCSIDrivers() *gomock.Call {
 }
 
 // ListCSIStorageCapacities mocks base method.
-func (m *MockDataLister) ListCSIStorageCapacities() ([]*v12.CSIStorageCapacity, error) {
+func (m *MockDataLister) ListCSIStorageCapacities() ([]*v11.CSIStorageCapacity, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListCSIStorageCapacities")
-	ret0, _ := ret[0].([]*v12.CSIStorageCapacity)
+	ret0, _ := ret[0].([]*v11.CSIStorageCapacity)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -166,21 +166,6 @@ func (mr *MockDataListerMockRecorder) ListPodByIndex(index, value any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPodByIndex", reflect.TypeOf((*MockDataLister)(nil).ListPodByIndex), index, value)
 }
 
-// ListPodDisruptionBudgets mocks base method.
-func (m *MockDataLister) ListPodDisruptionBudgets() ([]*v10.PodDisruptionBudget, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListPodDisruptionBudgets")
-	ret0, _ := ret[0].([]*v10.PodDisruptionBudget)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListPodDisruptionBudgets indicates an expected call of ListPodDisruptionBudgets.
-func (mr *MockDataListerMockRecorder) ListPodDisruptionBudgets() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPodDisruptionBudgets", reflect.TypeOf((*MockDataLister)(nil).ListPodDisruptionBudgets))
-}
-
 // ListPodGroups mocks base method.
 func (m *MockDataLister) ListPodGroups() ([]*v2alpha2.PodGroup, error) {
 	m.ctrl.T.Helper()
@@ -212,10 +197,10 @@ func (mr *MockDataListerMockRecorder) ListPods() *gomock.Call {
 }
 
 // ListPriorityClasses mocks base method.
-func (m *MockDataLister) ListPriorityClasses() ([]*v11.PriorityClass, error) {
+func (m *MockDataLister) ListPriorityClasses() ([]*v10.PriorityClass, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListPriorityClasses")
-	ret0, _ := ret[0].([]*v11.PriorityClass)
+	ret0, _ := ret[0].([]*v10.PriorityClass)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -242,10 +227,10 @@ func (mr *MockDataListerMockRecorder) ListQueues() *gomock.Call {
 }
 
 // ListStorageClasses mocks base method.
-func (m *MockDataLister) ListStorageClasses() ([]*v12.StorageClass, error) {
+func (m *MockDataLister) ListStorageClasses() ([]*v11.StorageClass, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListStorageClasses")
-	ret0, _ := ret[0].([]*v12.StorageClass)
+	ret0, _ := ret[0].([]*v11.StorageClass)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -254,4 +239,19 @@ func (m *MockDataLister) ListStorageClasses() ([]*v12.StorageClass, error) {
 func (mr *MockDataListerMockRecorder) ListStorageClasses() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListStorageClasses", reflect.TypeOf((*MockDataLister)(nil).ListStorageClasses))
+}
+
+// ListTopologies mocks base method.
+func (m *MockDataLister) ListTopologies() ([]*v1alpha1.Topology, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTopologies")
+	ret0, _ := ret[0].([]*v1alpha1.Topology)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTopologies indicates an expected call of ListTopologies.
+func (mr *MockDataListerMockRecorder) ListTopologies() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTopologies", reflect.TypeOf((*MockDataLister)(nil).ListTopologies))
 }

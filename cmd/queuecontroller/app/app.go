@@ -5,6 +5,7 @@ package app
 
 import (
 	"flag"
+	"fmt"
 
 	"go.uber.org/zap/zapcore"
 
@@ -21,8 +22,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/NVIDIA/KAI-scheduler/pkg/queuecontroller/controllers"
+	"github.com/NVIDIA/KAI-scheduler/pkg/queuecontroller/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -47,9 +50,15 @@ func Run() error {
 
 	initLogger()
 
+	metrics.InitMetrics(opts.MetricsNamespace, opts.QueueLabelToMetricLabel.Get(), opts.QueueLabelToDefaultMetricValue.Get())
+	setupLog.Info(fmt.Sprintf("Queue metrics initialized and registered with namespace: %s", opts.MetricsNamespace))
+
 	var err error
 	options := ctrl.Options{
-		Scheme:           scheme,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: opts.MetricsAddress,
+		},
 		LeaderElection:   opts.EnableLeaderElection,
 		LeaderElectionID: "42ece193.run.ai",
 	}
