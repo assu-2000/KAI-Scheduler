@@ -21,7 +21,7 @@ type topologyPlugin struct {
 	enabled            bool
 	taskOrderFunc      common_info.LessFn
 	sessionStateGetter k8s_internal.SessionStateProvider
-	nodesInfoMap       map[string]*node_info.NodeInfo
+	nodesInfos         map[string]*node_info.NodeInfo
 	TopologyTrees      map[string]*TopologyInfo
 }
 
@@ -40,7 +40,7 @@ func (t *topologyPlugin) OnSessionOpen(ssn *framework.Session) {
 	topologies := ssn.Topologies
 	t.taskOrderFunc = ssn.TaskOrderFn
 	t.sessionStateGetter = ssn
-	t.nodesInfoMap = ssn.Nodes
+	t.nodesInfos = ssn.Nodes
 	t.initializeTopologyTree(topologies, ssn)
 
 	ssn.AddEventHandler(&framework.EventHandler{

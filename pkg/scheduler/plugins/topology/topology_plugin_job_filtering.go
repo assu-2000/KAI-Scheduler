@@ -107,25 +107,26 @@ func (t *topologyPlugin) calcTreeAlocationData(job *podgroup_info.PodGroupInfo, 
 	currentlyUpdatedDomains := map[TopologyDomainID]*TopologyDomainInfo{}
 	for len(latestUpdatedDomains) > 0 {
 		for _, domain := range latestUpdatedDomains {
-			if domain.Parent != nil {
-				// Known issue: shold be replaced with the real distance logic
-				// TODO: subsetsum on allocateablePods, from them find min distance
-				if domain.Parent.AllocatablePods < taskToAllocateCount {
-					// If the parent domain has less allocateable pods than the tasks to allocate,
-					// we need to update the parent domain with the current domain's allocateable pods
-					if domain.AllocatablePods < taskToAllocateCount {
-						domain.Parent.Distance += domain.Distance
-						domain.Parent.AllocatablePods += domain.AllocatablePods
-					} else {
-						domain.Parent.Distance = domain.Distance
-						domain.Parent.AllocatablePods = domain.AllocatablePods
-					}
-				} else if domain.Parent.Distance > domain.Distance {
+			if domain.Parent == nil {
+				continue
+			}
+			// Known issue: should be replaced with the real distance logic
+			// TODO: subsetsum on allocateablePods, from them find min distance
+			if domain.Parent.AllocatablePods < taskToAllocateCount {
+				// If the parent domain has less allocateable pods than the tasks to allocate,
+				// we need to update the parent domain with the current domain's allocateable pods
+				if domain.AllocatablePods < taskToAllocateCount {
+					domain.Parent.Distance += domain.Distance
+					domain.Parent.AllocatablePods += domain.AllocatablePods
+				} else {
 					domain.Parent.Distance = domain.Distance
 					domain.Parent.AllocatablePods = domain.AllocatablePods
 				}
-				currentlyUpdatedDomains[domain.Parent.ID] = domain.Parent
+			} else if domain.Parent.Distance > domain.Distance {
+				domain.Parent.Distance = domain.Distance
+				domain.Parent.AllocatablePods = domain.AllocatablePods
 			}
+			currentlyUpdatedDomains[domain.Parent.ID] = domain.Parent
 		}
 		latestUpdatedDomains = currentlyUpdatedDomains
 		currentlyUpdatedDomains = map[TopologyDomainID]*TopologyDomainInfo{}
@@ -180,7 +181,7 @@ func (t *topologyPlugin) calcAllocationsForLeafDomains(job *podgroup_info.PodGro
 		{Name: "1-pods-resources", ResReq: maxPodResources},
 	}
 	leafDomains := map[TopologyDomainID]*TopologyDomainInfo{}
-	for _, node := range t.nodesInfoMap {
+	for _, node := range t.nodesInfos {
 		allocateablePodsCount := calcNodeAccomedation(maxPodResources, allocationTestPods, node, len(tasksToAllocate))
 
 		leafDomainId := calcLeafDomainId(topologyTree.TopologyResource, node.Node.Labels)

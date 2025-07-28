@@ -328,7 +328,7 @@ func TestTopologyPlugin_calcAllocationsForLeafDomains(t *testing.T) {
 			}
 			plugin := &topologyPlugin{
 				sessionStateGetter: session,
-				nodesInfoMap:       nodesInfoMap,
+				nodesInfos:         nodesInfoMap,
 			}
 
 			err, domains := plugin.calcAllocationsForLeafDomains(job, topologyTree)
@@ -1160,7 +1160,7 @@ func TestTopologyPlugin_calcTreeAlocationData(t *testing.T) {
 			}
 			plugin := &topologyPlugin{
 				sessionStateGetter: session,
-				nodesInfoMap:       nodesInfoMap,
+				nodesInfos:         nodesInfoMap,
 			}
 
 			// Call the function under test
