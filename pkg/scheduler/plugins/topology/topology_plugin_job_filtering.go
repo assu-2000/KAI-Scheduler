@@ -33,6 +33,13 @@ func (t *topologyPlugin) prePredicateFn(_ *pod_info.PodInfo, job *podgroup_info.
 		return err
 	}
 
+	// Clean allocation data from the tree
+	for _, levelDomains := range topologyTree.DomainsByLevel {
+		for _, domain := range levelDomains {
+			domain.AllocatablePods = 0
+		}
+	}
+
 	return nil
 }
 
