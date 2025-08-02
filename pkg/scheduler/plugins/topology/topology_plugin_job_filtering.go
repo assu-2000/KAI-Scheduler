@@ -191,11 +191,15 @@ func (t *topologyPlugin) getBestjobAllocateableDomains(job *podgroup_info.PodGro
 		}
 	}
 
-	if job.PodGroup.Spec.TopologyConstraint.PreferredTopologyLevel != "" {
-		return t.improveChoiseForPreference(maxDepthDomains, job)
+	if job.PodGroup.Spec.TopologyConstraint.PreferredTopologyLevel != "" &&
+		maxDepthDomains[0].Level != job.PodGroup.Spec.TopologyConstraint.PreferredTopologyLevel {
+		// If Preferred is defined and we couldn't find a domain on the prefered level,
+		// return a children subset and not a single domain
+		return t.improveChoiceForPreference(maxDepthDomains, job)
 	}
 
-	return maxDepthDomains, nil
+	// For stage 1, return a single domain
+	return []*TopologyDomainInfo{maxDepthDomains[0]}, nil
 }
 
 func (*topologyPlugin) calculateRelevantDomainLevels(
@@ -240,14 +244,10 @@ func (*topologyPlugin) calculateRelevantDomainLevels(
 	return relevantLevels, nil
 }
 
-func (t *topologyPlugin) improveChoiseForPreference(maxDepthDomains []*TopologyDomainInfo, job *podgroup_info.PodGroupInfo) ([]*TopologyDomainInfo, error) {
-	// if Preferred is defined and we found a domain on the prefered level, return it
+func (t *topologyPlugin) improveChoiceForPreference(maxDepthDomains []*TopologyDomainInfo, job *podgroup_info.PodGroupInfo) ([]*TopologyDomainInfo, error) {
 	taskToAllocateCount := len(podgroup_info.GetTasksToAllocate(job, t.taskOrderFunc, true))
-	if maxDepthDomains[0].Level == job.PodGroup.Spec.TopologyConstraint.PreferredTopologyLevel {
-		return []*TopologyDomainInfo{maxDepthDomains[0]}, nil
-	}
-
-	// else, look for a subgroup of children domains that allows the job to be allocated
+	// Look for a subgroup of children domains that allows the job to be allocated
+	// and return the one with the least number of domains required for the allocation
 	bestChildrenSubset := []*TopologyDomainInfo{}
 	for _, domain := range maxDepthDomains {
 		childDomainSubset := getJobAllocateableChildrenSubset(domain, taskToAllocateCount)
