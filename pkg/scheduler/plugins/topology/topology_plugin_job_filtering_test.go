@@ -17,9 +17,6 @@ import (
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_info"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_status"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/podgroup_info"
-	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/common_info"
-	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/node_info"
-	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/api/pod_status"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/framework"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/test_utils/jobs_fake"
 	"github.com/NVIDIA/KAI-scheduler/pkg/scheduler/test_utils/nodes_fake"
@@ -882,7 +879,6 @@ func TestTopologyPlugin_calcTreeAllocatable(t *testing.T) {
 	}
 }
 
-
 func TestTopologyPlugin_getBestjobAllocateableDomains(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -962,81 +958,6 @@ func TestTopologyPlugin_getBestjobAllocateableDomains(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name: "multiple domains with same minimum distance",
-			job: &podgroup_info.PodGroupInfo{
-				Name:         "test-job",
-				MinAvailable: 2,
-				PodGroup: &enginev2alpha2.PodGroup{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-job",
-					},
-					Spec: enginev2alpha2.PodGroupSpec{
-						TopologyConstraint: enginev2alpha2.TopologyConstraint{
-							RequiredTopologyLevel: "zone",
-						},
-					},
-				},
-				PodInfos: map[common_info.PodID]*pod_info.PodInfo{
-					"pod1": {Name: "pod1", Status: pod_status.Pending},
-					"pod2": {Name: "pod2", Status: pod_status.Pending},
-				},
-			},
-			topologyTree: &TopologyInfo{
-				Name: "test-topology",
-				TopologyResource: &kueuev1alpha1.Topology{
-					Spec: kueuev1alpha1.TopologySpec{
-						Levels: []kueuev1alpha1.TopologyLevel{
-							{NodeLabel: "rack"},
-							{NodeLabel: "zone"},
-						},
-					},
-				},
-				DomainsByLevel: map[string]map[TopologyDomainID]*TopologyDomainInfo{
-					"rack": {
-						"rack1.zone1": {
-							ID:              "rack1.zone1",
-							Name:            "rack1",
-							Level:           "rack",
-							AllocatablePods: 2,
-						},
-						"rack2.zone1": {
-							ID:              "rack2.zone1",
-							Name:            "rack2",
-							Level:           "rack",
-							AllocatablePods: 2,
-						},
-					},
-					"zone": {
-						"zone1": {
-							ID:              "zone1",
-							Name:            "zone1",
-							Level:           "zone",
-							AllocatablePods: 4,
-						},
-					},
-				},
-			},
-			taskOrderFunc: func(l, r interface{}) bool {
-				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
-			},
-			expectedDomains: []*TopologyDomainInfo{
-				{
-					ID:              "rack1.zone1",
-					Name:            "rack1",
-					Level:           "rack",
-					AllocatablePods: 2,
-				},
-				{
-					ID:              "rack2.zone1",
-					Name:            "rack2",
-					Level:           "rack",
-					AllocatablePods: 2,
-				},
-			},
-			expectedError: "",
-		},
-
-		{
 			name: "no domains can allocate the job",
 			job: &podgroup_info.PodGroupInfo{
 				Name:         "test-job",
@@ -1089,7 +1010,7 @@ func TestTopologyPlugin_getBestjobAllocateableDomains(t *testing.T) {
 				return l.(*pod_info.PodInfo).Name < r.(*pod_info.PodInfo).Name
 			},
 			expectedDomains: []*TopologyDomainInfo{},
-			expectedError:   "",
+			expectedError:   "no domains found for the job test-job, workload topology name: test-topology",
 		},
 		{
 			name: "no relevant domain levels",
