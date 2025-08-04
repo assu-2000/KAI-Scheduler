@@ -173,18 +173,3 @@ func (r *ResourceRequirements) Get(rn v1.ResourceName) float64 {
 		return r.BaseResource.Get(rn)
 	}
 }
-
-func (r *ResourceRequirements) Add(rr *ResourceRequirements) {
-	r.BaseResource.Add(&rr.BaseResource)
-	if len(r.GpuResourceRequirement.MigResources()) > 0 {
-		for migResource, quant := range rr.GpuResourceRequirement.MigResources() {
-			r.GpuResourceRequirement.MigResources()[migResource] += quant
-		}
-	} else {
-		updatedGpuResource := NewGpuResourceRequirementWithMultiFraction(
-			r.GetNumOfGpuDevices(),
-			r.GpuFractionalPortion(),
-			r.GpuMemory())
-		r.GpuResourceRequirement = *updatedGpuResource
-	}
-}
