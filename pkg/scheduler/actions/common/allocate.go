@@ -125,13 +125,34 @@ func handleFailedTaskAllocation(job *podgroup_info.PodGroupInfo, unschedulableTa
 		allocationError.SetError(common_info.DefaultPodError)
 	}
 
-	numRunningTasks := job.GetActivelyRunningTasksCount()
-	if job.GetDefaultMinAvailable() > 1 && numRunningTasks < job.GetDefaultMinAvailable() {
+	isGangScheduling := false
+	var taskSubGroup *podgroup_info.SubGroupInfo
+	for subGroupName, subGroup := range job.GetSubGroups() {
+		if unschedulableTask.SubGroupName == subGroupName {
+			taskSubGroup = subGroup
+		}
+		if subGroup.GetMinAvailable() > 1 {
+			isGangScheduling = true
+		}
+	}
+
+	if isGangScheduling && taskSubGroup != nil && taskSubGroup.GetNumActiveUsedTasks() < int(taskSubGroup.GetMinAvailable()) {
+		if len(job.GetSubGroups()) == 1 {
+			if taskSubGroup.GetName() == podgroup_info.DefaultSubGroup {
+				job.SetJobFitError(
+					podgroup_info.PodSchedulingErrors,
+					fmt.Sprintf("Resources were found for %d pods while %d are required for gang scheduling. "+
+						"Additional pods cannot be scheduled due to: %s",
+						numSchedulableTasks, taskSubGroup.GetMinAvailable(), allocationError.Error()),
+					nil)
+				return
+			}
+		}
 		job.SetJobFitError(
 			podgroup_info.PodSchedulingErrors,
-			fmt.Sprintf("Resources were found for %d pods while %d are required for gang scheduling. "+
-				"Additional pods cannot be scheduled due to: %s",
-				numSchedulableTasks, job.GetDefaultMinAvailable(), allocationError.Error()),
+			fmt.Sprintf("Resources were found for %d pods from all sub-groups while sub-group %s minimum %d are required for gang scheduling. "+
+				"Additional pods cannot be scheduled in this sub-group due to: %s",
+				numSchedulableTasks, taskSubGroup.GetName(), taskSubGroup.GetMinAvailable(), allocationError.Error()),
 			nil)
 	} else {
 		job.SetJobFitError(
