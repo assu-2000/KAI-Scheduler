@@ -42,6 +42,17 @@ func jobInfoEqual(l, r *PodGroupInfo) bool {
 	return true
 }
 
+func SetDefaultMinAvailable(pgi *PodGroupInfo, minAvailable int32) {
+	if pgi.SubGroups == nil {
+		pgi.SubGroups = map[string]*SubGroupInfo{}
+	}
+
+	if _, exists := pgi.SubGroups[DefaultSubGroup]; !exists {
+		pgi.SubGroups[DefaultSubGroup] = NewSubGroupInfo(DefaultSubGroup, 0)
+	}
+	pgi.SubGroups[DefaultSubGroup].SetMinAvailable(minAvailable)
+}
+
 func TestAddTaskInfo(t *testing.T) {
 	// case1
 	case01_uid := common_info.PodGroupID("uid")
