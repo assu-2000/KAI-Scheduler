@@ -814,7 +814,7 @@ var _ = Describe("Set Fair Share in Proportion", func() {
 					},
 				},
 			}
-			victim.Job.SetDefaultMinAvailable(2)
+			podgroup_info.SetDefaultMinAvailable(victim.Job, 2)
 
 			// This should not panic
 			result := plugin.getVictimResources(victim)
@@ -847,7 +847,7 @@ var _ = Describe("Set Fair Share in Proportion", func() {
 					},
 				},
 			}
-			victim.Job.SetDefaultMinAvailable(1)
+			podgroup_info.SetDefaultMinAvailable(victim.Job, 1)
 
 			result := plugin.getVictimResources(victim)
 
@@ -878,7 +878,7 @@ var _ = Describe("Set Fair Share in Proportion", func() {
 					},
 				},
 			}
-			victim.Job.SetDefaultMinAvailable(2)
+			podgroup_info.SetDefaultMinAvailable(victim.Job, 2)
 
 			result := plugin.getVictimResources(victim)
 
@@ -906,7 +906,7 @@ var _ = Describe("Set Fair Share in Proportion", func() {
 					},
 				},
 			}
-			victim.Job.SetDefaultMinAvailable(0)
+			podgroup_info.SetDefaultMinAvailable(victim.Job, 0)
 
 			result := plugin.getVictimResources(victim)
 

@@ -139,7 +139,7 @@ func (pgi *PodGroupInfo) GetSubGroups() map[string]*SubGroupInfo {
 	return pgi.SubGroups
 }
 
-func (pgi *PodGroupInfo) SetDefaultMinAvailable(minAvailable int32) {
+func SetDefaultMinAvailable(pgi *PodGroupInfo, minAvailable int32) {
 	if pgi.SubGroups == nil {
 		pgi.SubGroups = map[string]*SubGroupInfo{}
 	}

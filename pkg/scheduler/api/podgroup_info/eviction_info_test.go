@@ -60,7 +60,7 @@ func TestGetTasksToEvict_Table(t *testing.T) {
 			name: "WithSubGroups_SingleEvict",
 			job: func() *PodGroupInfo {
 				pg := NewPodGroupInfo("pg1")
-				pg.SetDefaultMinAvailable(2)
+				SetDefaultMinAvailable(pg, 2)
 				pg.SubGroups["sg1"] = NewSubGroupInfo("sg1", 1)
 				pg.SubGroups["sg2"] = NewSubGroupInfo("sg2", 1)
 
